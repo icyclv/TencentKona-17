@@ -149,7 +149,7 @@ class G1BuildCandidateRegionsTask : public AbstractGangTask {
   // gather additional statistics.
   class G1BuildCandidateRegionsClosure : public HeapRegionClosure {
     G1BuildCandidateArray* _array;
-
+    G1CollectedHeap* _g1h;
     uint _cur_chunk_idx;
     uint _cur_chunk_end;
 
@@ -171,11 +171,12 @@ class G1BuildCandidateRegionsTask : public AbstractGangTask {
       _reclaimable_bytes_added += hr->reclaimable_bytes();
     }
 
-    bool should_add(HeapRegion* hr) { return G1CollectionSetChooser::should_add(hr); }
+    bool should_add(HeapRegion* hr) { return G1CollectionSetChooser::should_add(hr,_g1h->policy()->live_threshold_percent()); }
 
   public:
-    G1BuildCandidateRegionsClosure(G1BuildCandidateArray* array) :
+    G1BuildCandidateRegionsClosure(G1BuildCandidateArray* array,G1CollectedHeap* g1h) :
       _array(array),
+      _g1h(g1h),
       _cur_chunk_idx(0),
       _cur_chunk_end(0),
       _regions_added(0),
@@ -231,7 +232,7 @@ public:
     _result(max_num_regions, chunk_size, num_workers) { }
 
   void work(uint worker_id) {
-    G1BuildCandidateRegionsClosure cl(&_result);
+    G1BuildCandidateRegionsClosure cl(&_result,_g1h);
     _g1h->heap_region_par_iterate_from_worker_offset(&cl, &_hrclaimer, worker_id);
     update_totals(cl.regions_added(), cl.reclaimable_bytes_added());
   }
@@ -250,10 +251,10 @@ uint G1CollectionSetChooser::calculate_work_chunk_size(uint num_workers, uint nu
   return MAX2(num_regions / num_workers, 1U);
 }
 
-bool G1CollectionSetChooser::should_add(HeapRegion* hr) {
+bool G1CollectionSetChooser::should_add(HeapRegion* hr, uintx live_threshold_percent) {
   return !hr->is_young() &&
          !hr->is_pinned() &&
-         region_occupancy_low_enough_for_evac(hr->live_bytes()) &&
+         region_occupancy_low_enough_for_evac(hr->live_bytes(),live_threshold_percent) &&
          hr->rem_set()->is_complete();
 }
 

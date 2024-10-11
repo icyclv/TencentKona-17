@@ -75,26 +75,26 @@ TEST_VM(G1StaticIHOPControl, simple) {
   G1StaticIHOPControl ctrl(initial_ihop, &alloc_tracker);
   ctrl.update_target_occupancy(100);
 
-  size_t threshold = ctrl.get_conc_mark_start_threshold();
+  size_t threshold = ctrl.get_conc_mark_start_threshold((uintx)5);
   EXPECT_EQ(initial_ihop, threshold);
 
   test_update_allocation_tracker(&alloc_tracker, 100);
   ctrl.update_allocation_info(100.0, 100);
-  threshold = ctrl.get_conc_mark_start_threshold();
+  threshold = ctrl.get_conc_mark_start_threshold((uintx)5);
   EXPECT_EQ(initial_ihop, threshold);
 
   ctrl.update_marking_length(1000.0);
-  threshold = ctrl.get_conc_mark_start_threshold();
+  threshold = ctrl.get_conc_mark_start_threshold((uintx)5);
   EXPECT_EQ(initial_ihop, threshold);
 
   // Whatever we pass, the IHOP value must stay the same.
   test_update(&ctrl, &alloc_tracker, 2, 10, 10, 3);
-  threshold = ctrl.get_conc_mark_start_threshold();
+  threshold = ctrl.get_conc_mark_start_threshold((uintx)5);
 
   EXPECT_EQ(initial_ihop, threshold);
 
   test_update(&ctrl, &alloc_tracker, 12, 10, 10, 3);
-  threshold = ctrl.get_conc_mark_start_threshold();
+  threshold = ctrl.get_conc_mark_start_threshold((uintx)5);
 
   EXPECT_EQ(initial_ihop, threshold);
 }

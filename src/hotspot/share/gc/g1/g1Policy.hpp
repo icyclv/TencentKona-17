@@ -46,6 +46,7 @@ class HeapRegion;
 class G1CollectionSet;
 class G1CollectionSetCandidates;
 class G1CollectionSetChooser;
+class G1AdaptMixedGCControl;
 class G1IHOPControl;
 class G1Analytics;
 class G1SurvivorRegions;
@@ -61,7 +62,12 @@ class G1Policy: public CHeapObj<mtGC> {
   void update_ihop_prediction(double mutator_time_s,
                               size_t young_gen_size,
                               bool this_gc_was_young_only);
-  void report_ihop_statistics();
+  void report_ihop_statistics(uintx gc_heap_waste_percent);
+
+  static G1AdaptMixedGCControl* create_adapt_mixed_gc_control(const G1OldGenAllocationTracker* old_gen_alloc_tracker,
+                                                            const G1Predictions* predictor);
+  void update_adapt_mixed_gc_prediction(long used_after_gc,bool is_premixed_gc);
+  void report_adapt_mixed_gc_statistics();
 
   G1Predictions _predictor;
   G1Analytics* _analytics;
@@ -71,6 +77,8 @@ class G1Policy: public CHeapObj<mtGC> {
   // Tracking the allocation in the old generation between
   // two GCs.
   G1OldGenAllocationTracker _old_gen_alloc_tracker;
+  G1AdaptMixedGCControl* _adapt_mixed_gc_control;
+
   G1IHOPControl* _ihop_control;
 
   GCPolicyCounters* _policy_counters;
@@ -123,7 +131,7 @@ public:
   G1RemSetTrackingPolicy* remset_tracker() { return &_remset_tracker; }
 
   G1OldGenAllocationTracker* old_gen_alloc_tracker() { return &_old_gen_alloc_tracker; }
-
+  
   void set_region_eden(HeapRegion* hr) {
     hr->set_eden();
     hr->install_surv_rate_group(_eden_surv_rate_group);
@@ -330,6 +338,8 @@ public:
 
   void print_phases();
 
+  uintx live_threshold_percent() const;
+
   bool next_gc_should_be_mixed(const char* true_action_str,
                                const char* false_action_str) const;
 
@@ -444,6 +454,7 @@ public:
   void update_max_gc_locker_expansion();
 
   void update_survivors_policy();
+
 };
 
 #endif // SHARE_GC_G1_G1POLICY_HPP

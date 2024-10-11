@@ -997,7 +997,7 @@ class G1UpdateRemSetTrackingBeforeRebuildTask : public AbstractGangTask {
         selected_for_rebuild = tracking_policy->update_humongous_before_rebuild(hr, is_live);
       } else {
         size_t const live_bytes = _cm->live_bytes(hr->hrm_index());
-        selected_for_rebuild = tracking_policy->update_before_rebuild(hr, live_bytes);
+        selected_for_rebuild = tracking_policy->update_before_rebuild(hr, live_bytes,_g1h->policy()->live_threshold_percent());
       }
       if (selected_for_rebuild) {
         _num_regions_selected_for_rebuild++;

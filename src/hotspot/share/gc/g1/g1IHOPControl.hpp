@@ -59,7 +59,7 @@ class G1IHOPControl : public CHeapObj<mtGC> {
   virtual ~G1IHOPControl() { }
 
   // Get the current non-young occupancy at which concurrent marking should start.
-  virtual size_t get_conc_mark_start_threshold() = 0;
+  virtual size_t get_conc_mark_start_threshold(uintx gc_heap_waste_percent) = 0;
 
   // Adjust target occupancy.
   virtual void update_target_occupancy(size_t new_target_occupancy);
@@ -76,8 +76,8 @@ class G1IHOPControl : public CHeapObj<mtGC> {
   // the first mixed gc.
   virtual void update_marking_length(double marking_length_s) = 0;
 
-  virtual void print();
-  virtual void send_trace_event(G1NewTracer* tracer);
+  virtual void print(uintx gc_heap_waste_percent);
+  virtual void send_trace_event(G1NewTracer* tracer, uintx gc_heap_waste_percent);
 };
 
 // The returned concurrent mark starting occupancy threshold is a fixed value
@@ -91,7 +91,7 @@ class G1StaticIHOPControl : public G1IHOPControl {
  public:
   G1StaticIHOPControl(double ihop_percent, G1OldGenAllocationTracker const* old_gen_alloc_tracker);
 
-  size_t get_conc_mark_start_threshold() {
+  size_t get_conc_mark_start_threshold(uintx gc_heap_waste_percent) {
     guarantee(_target_occupancy > 0, "Target occupancy must have been initialized.");
     return (size_t) (_initial_ihop_percent * _target_occupancy / 100.0);
   }
@@ -132,7 +132,7 @@ class G1AdaptiveIHOPControl : public G1IHOPControl {
   // The "actual" target threshold the algorithm wants to keep during and at the
   // end of marking. This is typically lower than the requested threshold, as the
   // algorithm needs to consider restrictions by the environment.
-  size_t actual_target_threshold() const;
+  size_t actual_target_threshold(uintx gc_heap_waste_percent) const;
 
   // This method calculates the old gen allocation rate based on the net survived
   // bytes that are allocated in the old generation in the last mutator period.
@@ -146,13 +146,13 @@ class G1AdaptiveIHOPControl : public G1IHOPControl {
                         size_t heap_reserve_percent, // The percentage of total heap capacity that should not be tapped into.
                         size_t heap_waste_percent);  // The percentage of the free space in the heap that we think is not usable for allocation.
 
-  virtual size_t get_conc_mark_start_threshold();
+  virtual size_t get_conc_mark_start_threshold(uintx gc_heap_waste_percent);
 
   virtual void update_allocation_info(double allocation_time_s, size_t additional_buffer_size);
   virtual void update_marking_length(double marking_length_s);
 
-  virtual void print();
-  virtual void send_trace_event(G1NewTracer* tracer);
+  virtual void print(uintx gc_heap_waste_percent);
+  virtual void send_trace_event(G1NewTracer* tracer, uintx gc_heap_waste_percent);
 };
 
 #endif // SHARE_GC_G1_G1IHOPCONTROL_HPP

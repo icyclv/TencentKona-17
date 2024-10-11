@@ -43,19 +43,19 @@ class G1CollectionSetChooser : public AllStatic {
   static void prune(G1CollectionSetCandidates* candidates);
 public:
 
-  static size_t mixed_gc_live_threshold_bytes() {
-    return HeapRegion::GrainBytes * (size_t) G1MixedGCLiveThresholdPercent / 100;
+  static size_t mixed_gc_live_threshold_bytes(uintx live_threshold_percent) {
+    return HeapRegion::GrainBytes * (size_t) live_threshold_percent / 100;
   }
 
-  static bool region_occupancy_low_enough_for_evac(size_t live_bytes) {
-    return live_bytes < mixed_gc_live_threshold_bytes();
+  static bool region_occupancy_low_enough_for_evac(size_t live_bytes, uintx live_threshold_percent) {
+    return live_bytes < mixed_gc_live_threshold_bytes(live_threshold_percent);
   }
 
   // Determine whether to add the given region to the collection set candidates or
   // not. Currently, we skip pinned regions and regions whose live
   // bytes are over the threshold. Humongous regions may be reclaimed during cleanup.
   // Regions also need a complete remembered set to be a candidate.
-  static bool should_add(HeapRegion* hr);
+  static bool should_add(HeapRegion* hr, uintx live_threshold_percent);
 
   // Build and return set of collection set candidates sorted by decreasing gc
   // efficiency.

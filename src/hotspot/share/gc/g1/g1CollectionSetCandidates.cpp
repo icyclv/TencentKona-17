@@ -87,7 +87,7 @@ void G1CollectionSetCandidates::verify() const {
     // pinned after being added to the collection set candidates. Archive regions
     // should never have been added to the collection set though.
     guarantee((cur->is_pinned() && !cur->is_archive()) ||
-              G1CollectionSetChooser::should_add(cur),
+              G1CollectionSetChooser::should_add(cur,G1MixedGCLiveThresholdPercent),
               "Region %u should be eligible for addition.", cur->hrm_index());
     if (prev != NULL) {
       guarantee(prev->gc_efficiency() >= cur->gc_efficiency(),

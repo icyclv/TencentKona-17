@@ -34,6 +34,7 @@
 #include "gc/g1/g1ConcurrentRefineStats.hpp"
 #include "gc/g1/g1CollectionSetChooser.hpp"
 #include "gc/g1/g1HotCardCache.hpp"
+#include "gc/g1/g1AdaptMixedGCControl.hpp"
 #include "gc/g1/g1IHOPControl.hpp"
 #include "gc/g1/g1GCPhaseTimes.hpp"
 #include "gc/g1/g1Policy.hpp"
@@ -56,6 +57,7 @@ G1Policy::G1Policy(STWGCTimer* gc_timer) :
   _remset_tracker(),
   _mmu_tracker(new G1MMUTracker(GCPauseIntervalMillis / 1000.0, MaxGCPauseMillis / 1000.0)),
   _old_gen_alloc_tracker(),
+  _adapt_mixed_gc_control(create_adapt_mixed_gc_control(&_old_gen_alloc_tracker, &_predictor)),
   _ihop_control(create_ihop_control(&_old_gen_alloc_tracker, &_predictor)),
   _policy_counters(new GCPolicyCounters("GarbageFirst", 1, 2)),
   _full_collection_start_sec(0.0),
@@ -88,6 +90,7 @@ G1Policy::G1Policy(STWGCTimer* gc_timer) :
 
 G1Policy::~G1Policy() {
   delete _ihop_control;
+  delete _adapt_mixed_gc_control;
 }
 
 G1CollectorState* G1Policy::collector_state() const { return _g1h->collector_state(); }
@@ -590,7 +593,7 @@ bool G1Policy::need_to_start_conc_mark(const char* source, size_t alloc_word_siz
     return false;
   }
 
-  size_t marking_initiating_used_threshold = _ihop_control->get_conc_mark_start_threshold();
+  size_t marking_initiating_used_threshold = _ihop_control->get_conc_mark_start_threshold(_adapt_mixed_gc_control->get_heap_waste_percent());
 
   size_t cur_used_bytes = _g1h->non_young_capacity_bytes();
   size_t alloc_byte_size = alloc_word_size * HeapWordSize;
@@ -798,7 +801,15 @@ void G1Policy::record_collection_pause_end(double pause_time_ms, bool concurrent
                            last_unrestrained_young_length * HeapRegion::GrainBytes,
                            G1GCPauseTypeHelper::is_young_only_pause(this_pause));
 
-    _ihop_control->send_trace_event(_g1h->gc_tracer_stw());
+    _ihop_control->send_trace_event(_g1h->gc_tracer_stw(), _adapt_mixed_gc_control->get_heap_waste_percent());
+
+    if(G1GCPauseTypeHelper::is_last_young_pause(this_pause)) {
+      update_adapt_mixed_gc_prediction((long)_g1h->used(),true);
+    }else if(G1GCPauseTypeHelper::is_mixed_pause(this_pause)) {
+      update_adapt_mixed_gc_prediction((long)_g1h->used(),false);
+    }
+
+
   } else {
     // Any garbage collection triggered as periodic collection resets the time-to-mixed
     // measurement. Periodic collection typically means that the application is "inactive", i.e.
@@ -879,16 +890,41 @@ void G1Policy::update_ihop_prediction(double mutator_time_s,
   }
 
   if (report) {
-    report_ihop_statistics();
+    report_ihop_statistics(_adapt_mixed_gc_control->get_heap_waste_percent());
   }
 }
 
-void G1Policy::report_ihop_statistics() {
-  _ihop_control->print();
+void G1Policy::report_ihop_statistics(uintx gc_heap_waste_percent) {
+  _ihop_control->print(gc_heap_waste_percent);
 }
 
+G1AdaptMixedGCControl* G1Policy::create_adapt_mixed_gc_control(const G1OldGenAllocationTracker* old_gen_alloc_tracker,
+                                                            const G1Predictions* predictor) {
+  return new G1AdaptMixedGCControl(G1HeapWastePercent,
+                                   G1MixedGCLiveThresholdPercent,
+                                   G1OldCSetRegionThresholdPercent,
+                                   G1MixedGCCountTarget,
+                                   G1UseAdaptMixedGCAdaptHeapWastePercent,
+                                   G1UseAdaptMixedGCLiveThresholdPercent,
+                                   G1UseAdaptOldCSetRegionThresholdPercent,
+                                   G1UseAdaptMixedGCCountTarget,
+                                   predictor,
+                                   old_gen_alloc_tracker);
+}
+
+void G1Policy::update_adapt_mixed_gc_prediction(long used_after_gc,bool is_last_young_pause) {
+  _adapt_mixed_gc_control->update_allocation_info(used_after_gc,is_last_young_pause);
+}
+
+void G1Policy::report_adapt_mixed_gc_statistics() {
+  _adapt_mixed_gc_control->print();
+}
 void G1Policy::print_phases() {
   phase_times()->print();
+}
+
+uintx G1Policy::live_threshold_percent() const {
+  return _adapt_mixed_gc_control->get_mixed_gc_live_threshold_percent();
 }
 
 double G1Policy::predict_base_elapsed_time_ms(size_t pending_cards,
@@ -1248,7 +1284,7 @@ bool G1Policy::next_gc_should_be_mixed(const char* true_action_str,
 }
 
 size_t G1Policy::allowed_waste_in_collection_set() const {
-  return G1HeapWastePercent * _g1h->capacity() / 100;
+  return _adapt_mixed_gc_control->get_heap_waste_percent() * _g1h->capacity() / 100;
 }
 
 uint G1Policy::calc_min_old_cset_length(G1CollectionSetCandidates* candidates) const {
@@ -1263,7 +1299,7 @@ uint G1Policy::calc_min_old_cset_length(G1CollectionSetCandidates* candidates) c
   // that the result is the same during all mixed GCs that follow a cycle.
 
   const size_t region_num = candidates->num_regions();
-  const size_t gc_num = (size_t) MAX2(G1MixedGCCountTarget, (uintx) 1);
+  const size_t gc_num = (size_t) MAX2(_adapt_mixed_gc_control->get_mixed_gc_count_target(), (uintx) 1);
   size_t result = region_num / gc_num;
   // emulate ceiling
   if (result * gc_num < region_num) {
@@ -1280,7 +1316,7 @@ uint G1Policy::calc_max_old_cset_length() const {
 
   const G1CollectedHeap* g1h = G1CollectedHeap::heap();
   const size_t region_num = g1h->num_regions();
-  const size_t perc = (size_t) G1OldCSetRegionThresholdPercent;
+  const size_t perc = (size_t) _adapt_mixed_gc_control->get_old_cset_region_threshold_percent();
   size_t result = region_num * perc / 100;
   // emulate ceiling
   if (100 * result < region_num * perc) {

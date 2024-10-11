@@ -312,8 +312,32 @@
   product(bool, G1UsePreventiveGC, true, DIAGNOSTIC,                        \
           "Allows collections to be triggered proactively based on the      \
            number of free regions and the expected survival rates in each   \
-           section of the heap.")
-
+           section of the heap.")                                            \
+ product(size_t,G1AdaptMixedGCNumInitialSamples,3,                                \
+         "How many completed time periods from concurrent start to first " \
+          "mixed gc are required to use the input values for prediction "   \
+          "of the optimal occupancy to start marking.")                     \
+          range(1, max_intx)                                                \
+ product(bool,G1UseAdaptMixedGCAdaptHeapWastePercent,true,              \
+         "Adaptively adjust the heap waste percent from the "       \
+          "initial value of G1HeapWastePercent. The policy "    \
+          "attempts to start marking in time based on application "         \
+          "behavior.")                                                      \
+ product(bool,G1UseAdaptMixedGCLiveThresholdPercent,true,                       \
+         "Adaptively adjust the mixed gc live threshold percent from the "       \
+          "initial value of G1MixedGCLiveThresholdPercent. The policy "    \
+          "attempts to start marking in time based on application "         \
+          "behavior."   )                                                      \
+ product(bool,G1UseAdaptOldCSetRegionThresholdPercent,true,                       \
+         "Adaptively adjust the old cset region threshold percent from the "       \
+          "initial value of G1OldCSetRegionThresholdPercent. The policy "    \
+          "attempts to start marking in time based on application "         \
+          "behavior.")                                                      \
+ product(bool,G1UseAdaptMixedGCCountTarget,true,                       \
+         "Adaptively adjust the mixed gc count target from the "       \
+          "initial value of G1MixedGCCountTarget. The policy "    \
+          "attempts to start marking in time based on application "         \
+          "behavior."   )                                                      \
 // end of GC_G1_FLAGS
 
 #endif // SHARE_GC_G1_G1_GLOBALS_HPP

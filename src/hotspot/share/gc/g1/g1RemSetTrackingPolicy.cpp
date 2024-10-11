@@ -104,7 +104,7 @@ bool G1RemSetTrackingPolicy::update_humongous_before_rebuild(HeapRegion* r, bool
   return selected_for_rebuild;
 }
 
-bool G1RemSetTrackingPolicy::update_before_rebuild(HeapRegion* r, size_t live_bytes) {
+bool G1RemSetTrackingPolicy::update_before_rebuild(HeapRegion* r, size_t live_bytes, uintx live_threshold_percent) {
   assert(SafepointSynchronize::is_at_safepoint(), "should be at safepoint");
   assert(!r->is_humongous(), "Region %u is humongous", r->hrm_index());
 
@@ -126,7 +126,7 @@ bool G1RemSetTrackingPolicy::update_before_rebuild(HeapRegion* r, size_t live_by
   // - Otherwise only add those old gen regions which occupancy is low enough that there
   // is a chance that we will ever evacuate them in the mixed gcs.
   if ((total_live_bytes > 0) &&
-      G1CollectionSetChooser::region_occupancy_low_enough_for_evac(total_live_bytes) &&
+      G1CollectionSetChooser::region_occupancy_low_enough_for_evac(total_live_bytes,live_threshold_percent) &&
       !r->rem_set()->is_tracked()) {
 
     r->rem_set()->set_state_updating();

@@ -84,6 +84,7 @@
   NOT_PRODUCT(LOG_TAG(heapsampling)) \
   LOG_TAG(humongous) \
   LOG_TAG(ihop) \
+  LOG_TAG(adapt) \
   LOG_TAG(iklass) \
   LOG_TAG(indy) \
   LOG_TAG(init) \
