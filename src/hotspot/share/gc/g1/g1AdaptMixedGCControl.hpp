@@ -33,7 +33,7 @@ class G1AdaptMixedGCControl : public CHeapObj<mtGC> {
     uintx _default_old_cset_region_threshold_percent_lower_bound;
     uintx _default_mixed_gc_count_target_lower_bound;
     long _last_used_after_gc;
-
+    long _distance_to_target;
     double predict(TruncatedSeq const* seq) const;
 
     bool have_enough_data_for_prediction() const;
@@ -52,8 +52,8 @@ class G1AdaptMixedGCControl : public CHeapObj<mtGC> {
                           bool adapt_mixed_gc_count_target,
                           const G1Predictions * predictor,
                           const G1OldGenAllocationTracker* old_gen_alloc_tracker);
-
-    virtual void update_allocation_info(long used_after_gc,bool is_last_young_pause);
+    virtual void update_last_young_pause_info(long used_after_gc,long ihop_target);
+    virtual void update_allocation_info(long used_after_gc);
 
     virtual size_t get_heap_waste_percent() const { return _heap_waste_percent; }
     virtual size_t get_mixed_gc_live_threshold_percent() const { return _mixed_gc_live_threshold_percent; }

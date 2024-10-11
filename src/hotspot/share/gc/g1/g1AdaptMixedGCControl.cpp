@@ -23,7 +23,7 @@ G1AdaptMixedGCControl::G1AdaptMixedGCControl(uintx heap_waste_percent,
   _adapt_mixed_gc_live_threshold_percent(adapt_mixed_gc_live_threshold_percent),
   _adapt_old_cset_region_threshold_percent(adapt_old_cset_region_threshold_percent),
   _adapt_mixed_gc_count_target(adapt_mixed_gc_count_target),
-    _predictor(predictor),
+  _predictor(predictor),
   _old_gen_alloc_tracker(old_gen_alloc_tracker),
   _last_used_after_gc(-1)
 {   
@@ -37,53 +37,55 @@ G1AdaptMixedGCControl::G1AdaptMixedGCControl(uintx heap_waste_percent,
     _default_mixed_gc_count_target_upper_bound = MIN2((uintx)100,_mixed_gc_count_target*150/100);
 
     _default_heap_waste_percent_lower_bound = MAX2((uintx)0,_heap_waste_percent*50/100);
-    _default_mixed_gc_live_threshold_percent_lower_bound = MAX2((uintx)0,_mixed_gc_live_threshold_percent*75/100);
+    _default_mixed_gc_live_threshold_percent_lower_bound = MAX2((uintx)0,_mixed_gc_live_threshold_percent*90/100);
     _default_old_cset_region_threshold_percent_lower_bound = MAX2((uintx)0,_old_cset_region_threshold_percent*25/100);
     _default_mixed_gc_count_target_lower_bound = MAX2((uintx)0,_mixed_gc_count_target*50/100);
+    _distance_to_target = 0;
 }
-
-void G1AdaptMixedGCControl::update_allocation_info(long used_after_gc,bool is_last_young_pause) {
-    if(is_last_young_pause) {
-        _last_used_after_gc = used_after_gc;
-    }else{
-        long used_since_last_gc = used_after_gc - _last_used_after_gc;
-        log_debug(gc,adapt)("last used after gc: %ld, used after last gc: %ld, used since last gc: %ld", _last_used_after_gc, used_after_gc, used_since_last_gc);
-        _old_gen_growth_s.add((double)used_since_last_gc);
-        _last_used_after_gc = used_after_gc;
-        if(have_enough_data_for_prediction()) {
-            double pred_old_gen_growth = predict(&_old_gen_growth_s);
-            if(pred_old_gen_growth > 0) {
-                if(_adapt_mixed_gc_count_target) {
-                // _mixed_gc_count_target = MAX2((uintx)1,_mixed_gc_count_target * 90/100);
-                _mixed_gc_count_target = MAX2(_default_mixed_gc_count_target_lower_bound,_mixed_gc_count_target * 95/100);
-                }
-                if(_adapt_old_cset_region_threshold_percent) {
-                    // _old_cset_region_threshold_percent = MIN2((uintx)99,(_old_cset_region_threshold_percent * 105+99)/100);
-                    _old_cset_region_threshold_percent = MIN2(_default_old_cset_region_threshold_percent_upper_bound,(_old_cset_region_threshold_percent * 105+99)/100);
-                }
-                if(_adapt_mixed_gc_live_threshold_percent) {
-                    _mixed_gc_live_threshold_percent = MIN2(_default_mixed_gc_live_threshold_percent_upper_bound,(_mixed_gc_live_threshold_percent * 105+99)/100);
-                }
-                
-                if(_adapt_heap_waste_percent) {
-                    _heap_waste_percent = MAX2(_default_heap_waste_percent_lower_bound,_heap_waste_percent * 95/100);
-                }
-            }else if (pred_old_gen_growth < 0) {
-               if(_adapt_mixed_gc_count_target) {
-                _mixed_gc_count_target = MIN2(_default_mixed_gc_count_target_upper_bound,(_mixed_gc_count_target * 105+99)/100);
-               }
-               if(_adapt_old_cset_region_threshold_percent) {
-                _old_cset_region_threshold_percent = MAX2(_default_old_cset_region_threshold_percent_lower_bound,(_old_cset_region_threshold_percent * 95)/100);
-               }
-               if(_adapt_mixed_gc_live_threshold_percent) {
-                _mixed_gc_live_threshold_percent = MAX2(_default_mixed_gc_live_threshold_percent_lower_bound,(_mixed_gc_live_threshold_percent * 95)/100);
-               }
-               if(_adapt_heap_waste_percent) {
-                _heap_waste_percent = MIN2(_default_heap_waste_percent_upper_bound,(_heap_waste_percent * 105+99)/100);
-               }
+void G1AdaptMixedGCControl::update_last_young_pause_info(long used_after_gc,long ihop_target) {
+    _distance_to_target = used_after_gc - ihop_target;
+    _last_used_after_gc = used_after_gc; 
+}
+void G1AdaptMixedGCControl::update_allocation_info(long used_after_gc) {
+   
+    long used_since_last_gc = used_after_gc - _last_used_after_gc;
+    log_debug(gc,adapt)("last used after gc: %ld, used after last gc: %ld, used since last gc: %ld", _last_used_after_gc, used_after_gc, used_since_last_gc);
+    _old_gen_growth_s.add((double)used_since_last_gc);
+    _last_used_after_gc = used_after_gc;
+    if(have_enough_data_for_prediction()) {
+        double pred_old_gen_growth = predict(&_old_gen_growth_s);
+        
+        log_debug(gc,adapt)("predict old gen growth: %f, _distance_to_target/_mixed_gc_count_target: %f", pred_old_gen_growth, (double)(_distance_to_target/_mixed_gc_count_target));
+        if((-pred_old_gen_growth) < (double)(_distance_to_target/_mixed_gc_count_target)*0.8) {
+            if(_adapt_mixed_gc_count_target) {
+            _mixed_gc_count_target = MAX2(_default_mixed_gc_count_target_lower_bound,_mixed_gc_count_target * 95/100);
+            }
+            if(_adapt_old_cset_region_threshold_percent) {
+                _old_cset_region_threshold_percent = MIN2(_default_old_cset_region_threshold_percent_upper_bound,(_old_cset_region_threshold_percent * 105+99)/100);
+            }
+            if(_adapt_mixed_gc_live_threshold_percent) {
+                _mixed_gc_live_threshold_percent = MIN2(_default_mixed_gc_live_threshold_percent_upper_bound,(_mixed_gc_live_threshold_percent * 105+99)/100);
             }
             
+            if(_adapt_heap_waste_percent) {
+                _heap_waste_percent = MAX2(_default_heap_waste_percent_lower_bound,_heap_waste_percent * 95/100);
+            }
+        }else if ((-pred_old_gen_growth) > (double)(_distance_to_target/_mixed_gc_count_target)*1.2) {
+            if(_adapt_mixed_gc_count_target) {
+            _mixed_gc_count_target = MIN2(_default_mixed_gc_count_target_upper_bound,(_mixed_gc_count_target * 105+99)/100);
+            }
+            if(_adapt_old_cset_region_threshold_percent) {
+            _old_cset_region_threshold_percent = MAX2(_default_old_cset_region_threshold_percent_lower_bound,(_old_cset_region_threshold_percent * 95)/100);
+            }
+            if(_adapt_mixed_gc_live_threshold_percent) {
+            _mixed_gc_live_threshold_percent = MAX2(_default_mixed_gc_live_threshold_percent_lower_bound,(_mixed_gc_live_threshold_percent * 95)/100);
+            }
+            if(_adapt_heap_waste_percent) {
+            _heap_waste_percent = MIN2(_default_heap_waste_percent_upper_bound,(_heap_waste_percent * 105+99)/100);
+            }
         }
+            
+        
         print();
     }
 }

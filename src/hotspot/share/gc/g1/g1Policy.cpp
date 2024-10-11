@@ -804,9 +804,9 @@ void G1Policy::record_collection_pause_end(double pause_time_ms, bool concurrent
     _ihop_control->send_trace_event(_g1h->gc_tracer_stw(), _adapt_mixed_gc_control->get_heap_waste_percent());
 
     if(G1GCPauseTypeHelper::is_last_young_pause(this_pause)) {
-      update_adapt_mixed_gc_prediction((long)_g1h->used(),true);
+      _adapt_mixed_gc_control->update_last_young_pause_info((long)_g1h->used(),(long)_ihop_control->get_conc_mark_start_threshold(_adapt_mixed_gc_control->get_heap_waste_percent()));
     }else if(G1GCPauseTypeHelper::is_mixed_pause(this_pause)) {
-      update_adapt_mixed_gc_prediction((long)_g1h->used(),false);
+      _adapt_mixed_gc_control->update_allocation_info((long)_g1h->used());
     }
 
 
@@ -912,9 +912,7 @@ G1AdaptMixedGCControl* G1Policy::create_adapt_mixed_gc_control(const G1OldGenAll
                                    old_gen_alloc_tracker);
 }
 
-void G1Policy::update_adapt_mixed_gc_prediction(long used_after_gc,bool is_last_young_pause) {
-  _adapt_mixed_gc_control->update_allocation_info(used_after_gc,is_last_young_pause);
-}
+
 
 void G1Policy::report_adapt_mixed_gc_statistics() {
   _adapt_mixed_gc_control->print();

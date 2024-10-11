@@ -66,7 +66,6 @@ class G1Policy: public CHeapObj<mtGC> {
 
   static G1AdaptMixedGCControl* create_adapt_mixed_gc_control(const G1OldGenAllocationTracker* old_gen_alloc_tracker,
                                                             const G1Predictions* predictor);
-  void update_adapt_mixed_gc_prediction(long used_after_gc,bool is_premixed_gc);
   void report_adapt_mixed_gc_statistics();
 
   G1Predictions _predictor;
